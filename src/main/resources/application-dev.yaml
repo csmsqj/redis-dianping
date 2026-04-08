@@ -1,17 +1,18 @@
 # 1. 官方框架的开发环境配置 (前缀必须是 spring:)
 spring:
   datasource:
-    driver-class-name: com.mysql.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3306/hmdp?useSSL=false&serverTimezone=UTC
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/dianping?useSSL=false&serverTimezone=UTC
     username: ${MYSQL_NAME:root}
     password: ${MYSQL_PASSWORD:123456}
-  redis:
-    host: ${HOST:192.168.100.128}
-    port: ${PORT:6379}
-    password: ${REDIS_PASSWORD:123456}
-    lettuce:
-      pool:
-        max-active: 10
-        max-idle: 10
-        min-idle: 1
-        time-between-eviction-runs: 10s
+  data:
+    redis:
+      host: ${HOST:192.168.100.128}
+      port: ${PORT:6379}
+      password: ${REDIS_PASSWORD:123456}
+      lettuce:
+        pool:
+          max-active: 10
+          max-idle: 10
+          min-idle: 1
+          time-between-eviction-runs: 10s
