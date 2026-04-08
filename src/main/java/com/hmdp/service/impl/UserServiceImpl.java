@@ -62,7 +62,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         log.info("生成验证码成功，验证码：{}", numbers);
 //将验证码保存到 Redis 当中
         stringRedisTemplate.opsForValue().set(RedisConstants.LOGIN_CODE_KEY + phone, numbers,
-                RedisConstants.CACHE_NULL_TTL
+                RedisConstants.LOGIN_CODE_TTL
                 , java.util.concurrent.TimeUnit.MINUTES);
 
         return Result.ok();
@@ -105,7 +105,7 @@ user=userMapper.findByPhone(phone);
         //完成随机 TOKeN 作为登录令牌使用 UUID
         String token = UUID.randomUUID().toString(true);
         stringRedisTemplate.opsForHash().putAll(RedisConstants.LOGIN_USER_KEY+ token, stringObjectMap);
-stringRedisTemplate.expire(RedisConstants.LOGIN_USER_KEY+ token, RedisConstants.CACHE_SHOP_TTL
+stringRedisTemplate.expire(RedisConstants.LOGIN_USER_KEY+ token, RedisConstants.LOGIN_USER_TTL
         , TimeUnit.MINUTES);
 return Result.ok(token);
     }

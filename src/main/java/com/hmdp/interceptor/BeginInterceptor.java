@@ -24,7 +24,7 @@ public class BeginInterceptor implements HandlerInterceptor {
         String token = request.getHeader("Authorization");
 // tOKEN 不存在或者为空fangxing
         if(token==null||token.isEmpty()){
-            response.setStatus(401);
+
             return true;
         }
         // 通过token获取用户信息

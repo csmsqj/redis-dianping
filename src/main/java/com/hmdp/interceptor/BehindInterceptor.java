@@ -21,6 +21,7 @@ public class BehindInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         //如果是登录的，它是直接不被拦截、被放行。如果是过时没有登录的话，直接拦截
         if (UserHolder.getUser() == null) {
+            response.setStatus(401);
             return false;
         }
         return true;
