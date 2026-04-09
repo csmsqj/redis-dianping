@@ -6,6 +6,7 @@ import com.hmdp.entity.ShopType;
 import com.hmdp.mapper.ShopTypeMapper;
 import com.hmdp.service.IShopTypeService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.hmdp.utils.RedisConstants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisOperations;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * <p>
@@ -49,6 +51,7 @@ private StringRedisTemplate stringRedisTemplate;
         operations.rightPushAll(CACHE_SHOP_TYPE_KEY, shopTypeList.stream()
                 .map(JSONUtil::toJsonStr)
                 .toList());
+        stringRedisTemplate.expire(CACHE_SHOP_TYPE_KEY, RedisConstants.CACHE_SHOP_TTL, TimeUnit.MINUTES);
         return Result.ok(shopTypeList);
     }
 }
