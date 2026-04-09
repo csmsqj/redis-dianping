@@ -9,6 +9,8 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.RedisConstants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisOperations;
+import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -45,11 +47,17 @@ private StringRedisTemplate stringRedisTemplate;
         if (shopTypeList == null || shopTypeList.isEmpty()) {
             return Result.ok(Collections.emptyList());
         }
-        stringRedisTemplate.delete(RedisConstants.CACHE_SHOP_TYPE_KEY);
-        stringRedisTemplate.opsForList().rightPushAll(RedisConstants.CACHE_SHOP_TYPE_KEY, shopTypeList.stream()
-                .map(JSONUtil::toJsonStr)
-                .toList());
-        stringRedisTemplate.expire(RedisConstants.CACHE_SHOP_TYPE_KEY, RedisConstants.CACHE_SHOP_TTL, TimeUnit.MINUTES);
+        List<String> cachePayload = shopTypeList.stream().map(JSONUtil::toJsonStr).toList();
+        stringRedisTemplate.execute(new SessionCallback<>() {
+            @Override
+            public Object execute(RedisOperations operations) {
+                operations.multi();
+                operations.delete(RedisConstants.CACHE_SHOP_TYPE_KEY);
+                operations.opsForList().rightPushAll(RedisConstants.CACHE_SHOP_TYPE_KEY, cachePayload);
+                operations.expire(RedisConstants.CACHE_SHOP_TYPE_KEY, RedisConstants.CACHE_SHOP_TTL, TimeUnit.MINUTES);
+                return operations.exec();
+            }
+        });
         return Result.ok(shopTypeList);
     }
 }
