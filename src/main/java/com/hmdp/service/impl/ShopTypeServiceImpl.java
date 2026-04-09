@@ -9,7 +9,6 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.RedisConstants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -28,7 +27,6 @@ import java.util.concurrent.TimeUnit;
 @Service
 @Slf4j
 public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> implements IShopTypeService {
-private static final String CACHE_SHOP_TYPE_KEY = "cache:shop:type:list";
 @Autowired
 private ShopTypeMapper shopTypeMapper;
 @Autowired
@@ -36,7 +34,7 @@ private StringRedisTemplate stringRedisTemplate;
     @Override
     public Result queryTypeList() {
         log.info("查询商铺类型列表");
-        List<String> cacheList = stringRedisTemplate.opsForList().range(CACHE_SHOP_TYPE_KEY, 0, -1);
+        List<String> cacheList = stringRedisTemplate.opsForList().range(RedisConstants.CACHE_SHOP_TYPE_KEY, 0, -1);
         if (cacheList != null && !cacheList.isEmpty()) {
             List<ShopType> shopTypeList = cacheList.stream()
                     .map(item -> JSONUtil.toBean(item, ShopType.class))
@@ -47,11 +45,11 @@ private StringRedisTemplate stringRedisTemplate;
         if (shopTypeList == null || shopTypeList.isEmpty()) {
             return Result.ok(Collections.emptyList());
         }
-        RedisOperations<String, String> operations = stringRedisTemplate.opsForList();
-        operations.rightPushAll(CACHE_SHOP_TYPE_KEY, shopTypeList.stream()
+        stringRedisTemplate.delete(RedisConstants.CACHE_SHOP_TYPE_KEY);
+        stringRedisTemplate.opsForList().rightPushAll(RedisConstants.CACHE_SHOP_TYPE_KEY, shopTypeList.stream()
                 .map(JSONUtil::toJsonStr)
                 .toList());
-        stringRedisTemplate.expire(CACHE_SHOP_TYPE_KEY, RedisConstants.CACHE_SHOP_TTL, TimeUnit.MINUTES);
+        stringRedisTemplate.expire(RedisConstants.CACHE_SHOP_TYPE_KEY, RedisConstants.CACHE_SHOP_TTL, TimeUnit.MINUTES);
         return Result.ok(shopTypeList);
     }
 }
