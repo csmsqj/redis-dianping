@@ -51,6 +51,7 @@ public class ShopController {
         shopService.save(shop);
         // 返回店铺id
         return Result.ok(shop.getId());
+
     }
 
     /**
@@ -60,8 +61,8 @@ public class ShopController {
      */
     @PutMapping
     public Result updateShop(@RequestBody Shop shop) {
-        // 写入数据库
-        shopService.updateById(shop);
+        // 写入数据库（进行先修改数据库在操作缓存）
+        shopService.updateShop(shop);
         return Result.ok();
     }
 

@@ -14,4 +14,12 @@ public class WebExceptionAdvice {
         log.error(e.toString(), e);
         return Result.fail("服务器异常");
     }
+    //IllegalArgumentException
+    @ExceptionHandler(IllegalArgumentException.class)
+    public Result handleRuntimeException(IllegalArgumentException e) {
+        log.error(e.toString(), e);
+        String message = e.getMessage();
+        return Result.fail(message);
+    }
+
 }

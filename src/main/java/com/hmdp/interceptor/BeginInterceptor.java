@@ -1,6 +1,7 @@
 package com.hmdp.interceptor;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.util.StrUtil;
 import com.hmdp.dto.UserDTO;
 import com.hmdp.utils.RedisConstants;
 import com.hmdp.utils.UserHolder;
@@ -23,8 +24,7 @@ public class BeginInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         String token = request.getHeader("Authorization");
 // tOKEN 不存在或者为空fangxing
-        if(token==null||token.isEmpty()){
-
+        if(StrUtil.isBlank(token)){
             return true;
         }
         // 通过token获取用户信息
