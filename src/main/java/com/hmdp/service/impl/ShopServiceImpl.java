@@ -8,12 +8,14 @@ import com.hmdp.mapper.ShopMapper;
 import com.hmdp.service.IShopService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.RedisConstants;
+import com.hmdp.utils.SimpleRedisLock;
 import com.hmdp.utils.WordConstants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -84,7 +86,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         } finally {
             if (b) {
                 //如果要记住释放锁，所以写在 FINALLY 当中
-                unlock(RedisConstants.LOCK_SHOP_KEY + id,uuid);
+                unlock(RedisConstants.CACHE_SHOP_KEY + id,uuid);
             }
         }
 
@@ -95,11 +97,10 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     private void unlock(String s,String uuid) {
         //这里其实仍然有风险，当 a 获得了自己的名称之后。锁可能会过期。b 如果抢到锁，他的名称就会改，他从缓存当中获得的名称就会改变。
         // 本质原因是从锁中获取缓存和判断相等是不具有原子性的,我在 A 获取缓存之后，B 抢到了就会修改UUID
-        String lockstr = stringRedisTemplate.opsForValue().get(s);
-        if (lockstr.equals(uuid)) {
-stringRedisTemplate.delete(s);
+        new SimpleRedisLock(s, stringRedisTemplate).unlock();
+
         }
-    }
+
     private boolean tryLock(String key,String s){
         //首先这里必须要进行原子性操作，如果有两个操作的话会导致错误。原子性操作即必须要在一起操作，同时判断缓存是否存在，同时设置值
         //如果说A 线程拿到了这个锁，但是锁由于业务执行太久，过期了，B 线程拿到了这个锁，A 线程执行完毕后释放锁B 线程锁
