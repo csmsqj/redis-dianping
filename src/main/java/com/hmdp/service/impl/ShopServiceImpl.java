@@ -34,6 +34,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     private ShopMapper shopMapper;
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
+
     @Override
     // 根据id查询商铺信息
     //对于热点问题，缓存可能是不存在也可能因为过期而不存在。大量请求会先查询缓存不存在再查询数据库并重建缓存,大量数据库请求会导致数据库压力过大
@@ -57,7 +58,8 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         //null,2数据库查询商铺信息,没查到那么shop没对象为null
         //2.1为了防止缓存击穿问题，先获取锁,失败休眠并睡眠重试(休眠是为了防止一直抢夺 CPU，然后查询缓存是否命中导致速度过慢)
         String uuid = UUID.randomUUID().toString();
-        boolean b = this.tryLock(RedisConstants.LOCK_SHOP_KEY + id,uuid);
+        SimpleRedisLock simpleRedisLock = new SimpleRedisLock("shop:" + id, stringRedisTemplate);
+        boolean b = simpleRedisLock.tryLock(RedisConstants.LOCK_SHOP_TTL);
         Shop shop = null;
         try {
             if(!b){
@@ -86,31 +88,11 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         } finally {
             if (b) {
                 //如果要记住释放锁，所以写在 FINALLY 当中
-                unlock(RedisConstants.CACHE_SHOP_KEY + id,uuid);
+               simpleRedisLock.unlock();
             }
         }
-
-
         return Result.ok(shop);
     }
-
-    private void unlock(String s,String uuid) {
-        //这里其实仍然有风险，当 a 获得了自己的名称之后。锁可能会过期。b 如果抢到锁，他的名称就会改，他从缓存当中获得的名称就会改变。
-        // 本质原因是从锁中获取缓存和判断相等是不具有原子性的,我在 A 获取缓存之后，B 抢到了就会修改UUID
-        new SimpleRedisLock(s, stringRedisTemplate).unlock();
-
-        }
-
-    private boolean tryLock(String key,String s){
-        //首先这里必须要进行原子性操作，如果有两个操作的话会导致错误。原子性操作即必须要在一起操作，同时判断缓存是否存在，同时设置值
-        //如果说A 线程拿到了这个锁，但是锁由于业务执行太久，过期了，B 线程拿到了这个锁，A 线程执行完毕后释放锁B 线程锁
-        //所以说在设置锁的时候，值必须要设置唯一的值，释放锁的时候必须要判断这个值是否是自己的值，如果不是自己的值就不能删除锁
-        Boolean b = stringRedisTemplate.opsForValue()
-                .setIfAbsent(key, s, RedisConstants.LOCK_SHOP_TTL, TimeUnit.SECONDS);
-        //Boolean 包装类型，不是基本类型 boolean。
-        //理论上它有可能返回 null。如果返回 null，这里自动拆箱：return b,就可能触发空指针问题
-        return Boolean.TRUE.equals(b);
-}
 
     @Override
     public void updateShop(Shop shop) {

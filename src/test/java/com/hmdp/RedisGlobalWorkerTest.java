@@ -1,18 +1,16 @@
 package com.hmdp;
 
-import cn.hutool.core.lang.func.VoidFunc0;
-import com.hmdp.utils.RedisWorker;
+import com.hmdp.utils.RedisGlobalWorker;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import java.lang.invoke.VarHandle;
 import java.util.concurrent.*;
 
 @SpringBootTest
-public class RedisWorkerTest {
+public class RedisGlobalWorkerTest {
     @Autowired
-    private RedisWorker redisWorker;
+    private RedisGlobalWorker redisGlobalWorker;
     //自定义线程池
     ThreadPoolExecutor executor = new ThreadPoolExecutor(
             100,
@@ -31,7 +29,7 @@ public class RedisWorkerTest {
         //Runnable,每个线程生成100个id
         Runnable run = () -> {
             for (int i = 0; i < 100; i++) {
-                System.out.println(redisWorker.CreateGlobalId("order"));
+                System.out.println(redisGlobalWorker.CreateGlobalId("order"));
             }
             countDownLatch.countDown();
         };

@@ -53,6 +53,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     @Override
     //发送验证码
     public Result sendCode(String phone, HttpSession session) {
+
         // 1.校验手机号
         if(phone == null || phone.length() != 11||!phone.matches(RegexPatterns.PHONE_REGEX)){
             return Result.fail("手机号格式错误");

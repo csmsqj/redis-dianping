@@ -4,13 +4,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-
+//全局唯一id生成器
 @Component
-public class RedisWorker {
+public class RedisGlobalWorker {
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;

@@ -7,7 +7,8 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
-//简单的分布式锁
+//简单的分布式锁,可以用于上锁和解锁，底层使用lua脚本，保证原子性
+//但是最好的方法是使用Redisson，Redisson是基于Redis的分布式锁实现，功能更强大，性能更好，使用更简单
 public class SimpleRedisLock {
 
     private StringRedisTemplate stringRedisTemplate;
@@ -29,7 +30,7 @@ public class SimpleRedisLock {
     }
 
     //构造方法
-    public SimpleRedisLock(String name, StringRedisTemplate stringRedisTemplate) {
+    public  SimpleRedisLock(String name, StringRedisTemplate stringRedisTemplate) {
         this.name = name;
         this.stringRedisTemplate = stringRedisTemplate;
     }

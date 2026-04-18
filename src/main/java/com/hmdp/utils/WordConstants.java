@@ -13,4 +13,5 @@ public static  final String WROING_SHOP_TYPE="商铺类型列表不存在";
     public static final String WROING_VOUCHER_ORDER="您已经购买过了";
 
     public static final String WROING_USER="用户不存在";
+    public static final String WROING_USER_PHONE="优惠卷不存在";
 }

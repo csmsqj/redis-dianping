@@ -20,7 +20,6 @@ public class WebExceptionAdvice {
     }
     //IllegalArgumentException
     @ExceptionHandler(IllegalArgumentException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result handleRuntimeException(IllegalArgumentException e) {
         log.error("参数异常：{}", e.getMessage());
         String message = e.getMessage();
