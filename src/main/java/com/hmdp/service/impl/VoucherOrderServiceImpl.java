@@ -64,13 +64,21 @@ static{
 public void init() {
     SECKILL_ORDER_EXECUTOR.submit(()->{
 while(true) {
-    VoucherOrder voucherOrder = orderTasks.take();//阻塞式的获取订单任务
+
 //获取到了Redis 操作后任务,就可以执行后面的数据库操作了。
 // 数据库操作为新建一个 BEAN 专门执行，如果在本类当中执行的话可能会导致事务失效，
 // 如果在本类当中执行的话，调用的就是本类当中的方法，而不是代理对象的方法，所以事务就不会生效了。
     try {
+        VoucherOrder voucherOrder = orderTasks.take();//阻塞式的获取订单任务
         voucherOrderTxService.createVoucherOrder(voucherOrder);
-    } catch (Exception e) {
+
+    }
+    catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("订单处理线程被中断", e);
+            break;
+        }
+    catch (Exception e) {
         log.error("处理订单异常", e);
     }
 
@@ -119,25 +127,28 @@ if(list==null||list.contains(null)){
 //这里调用 LUA 脚本，判断用户能否抢到优惠券
         Long l = stringRedisTemplate.execute(SECKILL_SCRIPT,
                 Arrays.asList(RedisConstants.SECKILL_STOCK_KEY + voucherId.toString()
-                        , RedisConstants.LOCK_ORDER_KEY + UserHolder.getUser().getId().toString()),
+                        //这里必须要存前缀业务加优惠券 ID 只为用户代表一人一单优惠券
+                        , RedisConstants.LOCK_ORDER_KEY + voucherId.toString()),
                 UserHolder.getUser().getId().toString()
         );
         //如果能抢到优惠券，那么将其加入阻塞队列当中去,让线程从阻塞队列中取异步执行订单
         int r = l.intValue();
-if(r!=0){
-    throw new IllegalArgumentException(r==1?WordConstants.WROING_VOUCHER_STOCK:WordConstants.WROING_VOUCHER_ORDER);
+if(r!=2){
+    throw new IllegalArgumentException(r==0?WordConstants.WROING_VOUCHER_STOCK:WordConstants.WROING_VOUCHER_ORDER);
 }
 
-        RedisGlobalWorker redisGlobalWorker = new RedisGlobalWorker();
         Long orderId = redisGlobalWorker.CreateGlobalId("order");
         VoucherOrder voucherOrder = new VoucherOrder()
                 .setVoucherId(voucherId).setUserId(UserHolder.getUser().getId()).setId(orderId);
-// 使用 offer 方法入队，比 add 更安全
-        boolean success = orderTasks.offer(voucherOrder);
-if(!success) {
-throw new IllegalStateException("订单队列已满，无法处理更多订单");
-}
+
+        try {
+            orderTasks.put(voucherOrder);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         return orderId;
+
+
     }
 
 

@@ -24,11 +24,20 @@ private VoucherOrderMapper voucherOrderMapper;
     @Transactional
     public void createVoucherOrder(VoucherOrder voucherOrder) {
         //将秒杀库库存减一
-seckillVoucherService.update().setSql("stock=stock-1")
-        .eq("voucher_id", voucherOrder.getVoucherId())
-        .gt("stock", 0).update();
-//保存订单
-voucherOrderMapper.insert(voucherOrder);
+        //这里使用乐观所兜底，如果说在修改的时候发现库存不足了，就说明这个订单失败了，直接返回就好了
+        boolean b = seckillVoucherService.update().setSql("stock=stock-1")
+                .eq("voucher_id", voucherOrder.getVoucherId())
+                .gt("stock", 0).update();
+
+        if (!b) {
+            throw new IllegalStateException("库存不足，创建订单失败");
+        }
+//保存订单,这里可以增加用户和优惠券的 ID 为一兜底
+        try {
+            voucherOrderMapper.insert(voucherOrder);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("订单创建失败，可能是用户已经购买过了");
+        }
     }
 //要执行的数据库操作
 

@@ -5,7 +5,7 @@ local orderKey=KEYS[2]
 local userId=ARGV[1]
 --[[如果说存库不存在，返回零，代表秒杀失败]]
 local stockvalue=redis.call('get', stockKey)
-if(not stockvalur or tonumber(stockvalue)<=0) then
+if(not stockvalue or tonumber(stockvalue)<=0) then
     return 0
 end
 --[[在判断一人一单，如果说 Redis 当中有，那么返回一代表已经重复购买]]
