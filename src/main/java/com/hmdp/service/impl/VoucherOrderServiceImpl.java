@@ -1,5 +1,6 @@
 package com.hmdp.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.thread.ThreadFactoryBuilder;
 
 
@@ -14,14 +15,18 @@ import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.redis.connection.stream.*;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.*;
 /**
  * <p>
@@ -56,42 +61,101 @@ static{
     );
 }
 //应使用阻塞队列实现有任务进,异步取的操作
-    private static final BlockingQueue<VoucherOrder> orderTasks=new ArrayBlockingQueue<>(1000*1000);
+    /*private static final BlockingQueue<VoucherOrder> orderTasks=new ArrayBlockingQueue<>(1000*1000);*/
 
 @PostConstruct
 //这里为初始化操作，加载时就会执行这个方法，因为异步处理这个线程必须在开始时就提交
 // 消费者队列必须在内加载时就运行。如果说它是在秒杀之后运行的话，可能会导致库存过多或者订单过多的情况，导致消息积压，最终导致系统崩溃
 public void init() {
-    SECKILL_ORDER_EXECUTOR.submit(()->{
-while(true) {
-
-//获取到了Redis 操作后任务,就可以执行后面的数据库操作了。
-// 数据库操作为新建一个 BEAN 专门执行，如果在本类当中执行的话可能会导致事务失效，
-// 如果在本类当中执行的话，调用的就是本类当中的方法，而不是代理对象的方法，所以事务就不会生效了。
+    //创建消息队列
     try {
-        VoucherOrder voucherOrder = orderTasks.take();//阻塞式的获取订单任务
-        voucherOrderTxService.createVoucherOrder(voucherOrder);
-
+        stringRedisTemplate.opsForStream().createGroup("stream.orders", ReadOffset.from("0"), "g1");
+    } catch (Exception e) {
+        log.info("消费者组 g1 已存在，无需重复创建");
     }
-    catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            log.error("订单处理线程被中断", e);
+//初始化异步线程来消费消息队列当中的订单任务
+    SECKILL_ORDER_EXECUTOR.submit(() -> {
+                while (true) {
+                    try {
+//1获取消息队列中的订单信息
+                        List<MapRecord<String, Object, Object>> list = stringRedisTemplate.opsForStream().read(
+                                Consumer.from("g1", "c1"),
+                                StreamReadOptions.empty().count(1).block(Duration.ofSeconds(2)),
+                                StreamOffset.create("stream.orders", ReadOffset.lastConsumed())
+                        );
+                        //2.如果没有订单信息，那么就继续下一次循环,通过阻塞来等待信息的到来，不会占用过多 CPU资源
+                        if (list==null||list.isEmpty()) {
+                            continue;
+                        }
+                        //3.如果有订单信息，那么就创建订单
+                        Map<Object, Object> value = list.get(0).getValue();
+                        VoucherOrder voucherOrder = BeanUtil.fillBeanWithMap(value, new VoucherOrder(), true);
+                        //4.创建订单
+                        voucherOrderTxService.createVoucherOrder(voucherOrder);
+                        //5.确认消息已经被消费
+                        stringRedisTemplate.opsForStream().acknowledge("stream.orders", "g1", list.get(0).getId());
+                    }
+
+                    catch (Exception e) {
+                            log.error("处理订单异常", e);
+  // 【危机降临兜底触发】：一旦强一致性写库崩溃抛出异常，肯定不会往下走到 ACK 那一步。
+// 此时必须立马主动调用去兜底历史烂账的方法，打断常规主线接客业务，强行进入内部小循环查 PEL 本地账本！
+                        handlePendingList();
+
+
+                    }
+
+                }
+            }
+    );
+
+}
+
+    private void handlePendingList() {
+while (true){
+    List<MapRecord<String, Object, Object>> list = null;
+    try {
+         list=stringRedisTemplate.opsForStream().read(
+                Consumer.from("g1", "c1"),
+                StreamReadOptions.empty().count(1),
+                // 【极度关键映射】：ReadOffset.from("0") 完美等同于原生命令的 "0" 游标 (提取本机历史异常旧账)
+                StreamOffset.create("stream.orders", ReadOffset.from("0"))
+        );
+        if(list==null||list.isEmpty()){
+            //说明没有历史烂账了，直接退出循环
             break;
         }
+        Map<Object, Object> value = list.get(0).getValue();
+        VoucherOrder voucherOrder = BeanUtil.fillBeanWithMap(value, new VoucherOrder(), true);
+        //创建订单
+        voucherOrderTxService.createVoucherOrder(voucherOrder);
+        //确认消息已经被消费
+        stringRedisTemplate.opsForStream().acknowledge("stream.orders", "g1", list.get(0).getId());
+    }
+    //数据库已经被插入了，然后抛出了异常，那么这个时候再进行数据库操作，就会到这里的一层。  直接清理掉ack
+    catch(DuplicateKeyException e){
+        log.error("订单已经存在了", e);
+        //说明订单已经被创建了，直接确认消息已经被消费掉就好了
+        stringRedisTemplate.opsForStream().acknowledge("stream.orders", "g1", list.get(0).getId());
+    }
+    catch (IllegalArgumentException e) {
+        log.error("订单数据有问题", e);
+        //说明订单数据有问题，直接确认消息已经被消费掉就好了
+        stringRedisTemplate.opsForStream().acknowledge("stream.orders", "g1", list.get(0).getId());
+    }
     catch (Exception e) {
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException ex) {
+            throw new RuntimeException(ex);
+        }
         log.error("处理订单异常", e);
     }
-
-
-
-}
-    });
-
-
-
 }
 
-//LUV 脚本初始化
+    }
+
+    //LUV 脚本初始化
     private static final DefaultRedisScript<Long> SECKILL_SCRIPT;
     static {
         SECKILL_SCRIPT = new DefaultRedisScript<>();
@@ -105,6 +169,8 @@ while(true) {
 //Redis 和LUA 操作的原子任务
     @Override
     public Long seckillVoucher(Long voucherId) {
+        //生存全局订单 ID
+        Long orderId = redisGlobalWorker.CreateGlobalId("order");
     //在 Java当中，判断优惠券是否过期
 String seckillTimeKey="seckill:time:"+voucherId;
         List<Object> list = stringRedisTemplate.opsForHash().multiGet(seckillTimeKey, Arrays.asList("begin", "end"));
@@ -129,7 +195,9 @@ if(list==null||list.contains(null)){
                 Arrays.asList(RedisConstants.SECKILL_STOCK_KEY + voucherId.toString()
                         //这里必须要存前缀业务加优惠券 ID 只为用户代表一人一单优惠券
                         , RedisConstants.LOCK_ORDER_KEY + voucherId.toString()),
-                UserHolder.getUser().getId().toString()
+                UserHolder.getUser().getId().toString(),
+                voucherId.toString(),
+                orderId.toString()
         );
         //如果能抢到优惠券，那么将其加入阻塞队列当中去,让线程从阻塞队列中取异步执行订单
         int r = l.intValue();
@@ -137,15 +205,8 @@ if(r!=2){
     throw new IllegalArgumentException(r==0?WordConstants.WROING_VOUCHER_STOCK:WordConstants.WROING_VOUCHER_ORDER);
 }
 
-        Long orderId = redisGlobalWorker.CreateGlobalId("order");
-        VoucherOrder voucherOrder = new VoucherOrder()
-                .setVoucherId(voucherId).setUserId(UserHolder.getUser().getId()).setId(orderId);
 
-        try {
-            orderTasks.put(voucherOrder);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+
         return orderId;
 
 

@@ -6,6 +6,7 @@ import com.hmdp.mapper.VoucherOrderMapper;
 import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,13 +31,13 @@ private VoucherOrderMapper voucherOrderMapper;
                 .gt("stock", 0).update();
 
         if (!b) {
-            throw new IllegalStateException("库存不足，创建订单失败");
+            throw new IllegalArgumentException("库存不足，创建订单失败");
         }
 //保存订单,这里可以增加用户和优惠券的 ID 为一兜底
         try {
             voucherOrderMapper.insert(voucherOrder);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("订单创建失败，可能是用户已经购买过了");
+        } catch (DuplicateKeyException e) {
+            throw new DuplicateKeyException("订单创建失败，可能是用户已经购买过了");
         }
     }
 //要执行的数据库操作

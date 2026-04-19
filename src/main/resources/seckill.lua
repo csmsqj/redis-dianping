@@ -3,6 +3,8 @@
 local stockKey=KEYS[1]
 local orderKey=KEYS[2]
 local userId=ARGV[1]
+local voucherId=ARGV[2]
+local orderId=ARGV[3]
 --[[如果说存库不存在，返回零，代表秒杀失败]]
 local stockvalue=redis.call('get', stockKey)
 if(not stockvalue or tonumber(stockvalue)<=0) then
@@ -16,4 +18,7 @@ end
 redis.call('incrby', stockKey, -1)
 --[[把用户添加到redis订单当中]]
 redis.call('sadd', orderKey, userId)
+--[[把订单信息写入到 stream.orders 当中]]
+redis.call('xadd', 'stream.orders', '*', 'userId', userId, 'voucherId', voucherId, 'id', orderId)
+
 return 2
