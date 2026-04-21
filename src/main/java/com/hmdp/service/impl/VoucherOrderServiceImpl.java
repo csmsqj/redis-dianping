@@ -47,6 +47,7 @@ private RedisGlobalWorker redisGlobalWorker;
 private StringRedisTemplate stringRedisTemplate;
 @Autowired
 private VoucherOrderTxService voucherOrderTxService;
+    private volatile boolean running = true;
 //建立一个自定义线程池来执行异步任务
 private static final ExecutorService SECKILL_ORDER_EXECUTOR;
 static{
@@ -75,7 +76,8 @@ public void init() {
     }
 //初始化异步线程来消费消息队列当中的订单任务
     SECKILL_ORDER_EXECUTOR.submit(() -> {
-                while (true) {
+
+                while (running && !Thread.currentThread().isInterrupted()) {
                     try {
 //1获取消息队列中的订单信息
                         List<MapRecord<String, Object, Object>> list = stringRedisTemplate.opsForStream().read(
@@ -112,7 +114,7 @@ public void init() {
 }
 
     private void handlePendingList() {
-while (true){
+while (running && !Thread.currentThread().isInterrupted()){
     List<MapRecord<String, Object, Object>> list = null;
     try {
          list=stringRedisTemplate.opsForStream().read(
