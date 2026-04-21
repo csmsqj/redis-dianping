@@ -1,4 +1,4 @@
-# 黑马点评（Redis 进阶实战版）
+# 黑马点评
 
 ## 一、项目简介
 
@@ -287,7 +287,6 @@
 ### 4. Pending List 补偿阶段
 
 如果消费者处理消息异常但未 ACK，消息会留在 Pending List 中。项目中专门实现了 `handlePendingList()`：
-
 - 从 Pending List 读取历史未确认消息
 - 继续执行创建订单逻辑
 - 对重复订单进行异常识别并 ACK
@@ -375,18 +374,11 @@ mvn spring-boot:run
 - 学会了使用 Set、ZSet、Bitmap、GEO、Stream 等结构建模业务
 - 学会了用 Lua 提升 Redis 多步操作的原子性
 - 学会了秒杀场景下“前置削峰 + 异步落库 + 异常补偿”的完整思路
-
 对我来说，这个项目不是简单照着教程敲完，而是一次比较完整的 **Redis 实战能力整合**。
 
 ---
 
-## 十一、适合写在简历上的项目描述
-
-### 版本一（简洁版）
-
-基于 Spring Boot、MyBatis-Plus、MySQL、Redis 实现黑马点评后端项目，完成了验证码登录、商铺缓存、附近商铺查询、点赞、关注、Feed 流、签到统计、秒杀优惠券等功能；重点使用 Redis 的 String、Hash、List、Set、ZSet、Bitmap、GEO、Stream，并结合 Lua、自定义分布式锁、异步消费、Pending List 补偿等机制优化高并发场景下的性能与一致性。
-
-### 版本二（突出亮点版）
+## 十一、简历上项目描述
 
 独立完成黑马点评 Redis 进阶实战项目，围绕高并发与缓存设计实现了完整后端方案：使用 Redis 缓存商铺数据并处理缓存穿透、击穿、雪崩；基于 Redis Hash + Token 实现分布式登录态共享；使用 Bitmap 实现签到统计，GEO 实现附近商铺，ZSet 实现点赞排行与 Feed 流，Set 实现共同关注；在秒杀场景中通过 Lua 原子脚本完成库存与一人一单校验，并结合 Redis Stream、事务服务、Pending List 补偿实现异步下单链路。
 
