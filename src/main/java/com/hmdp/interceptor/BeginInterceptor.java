@@ -41,7 +41,8 @@ public class BeginInterceptor implements HandlerInterceptor {
         //有的请求并不需要存入线程池，但是带着的话可以和后面的拦截器一起验证
         UserHolder.saveUser(userDTO);
         // 刷新token有效期
-        stringRedisTemplate.expire(RedisConstants.LOGIN_USER_KEY + token, RedisConstants.LOGIN_USER_TTL, TimeUnit.SECONDS);
+        stringRedisTemplate.expire(RedisConstants.LOGIN_USER_KEY + token, RedisConstants.LOGIN_USER_TTL
+                , TimeUnit.MINUTES);
         return true;
 
     }

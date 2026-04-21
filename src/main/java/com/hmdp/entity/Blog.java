@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
+import net.sf.jsqlparser.expression.operators.relational.Plus;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
@@ -48,6 +49,8 @@ public class Blog implements Serializable {
     /**
      * 用户姓名
      */
+    /*@TableField(exist = false) 的含义与原理解释
+    这个注解明确告诉 MyBatis-Plus 框架：当前实体类中的这个属性，在底层数据库的对应表中不存在对应的字段*/
     @TableField(exist = false)
     private String name;
     /**

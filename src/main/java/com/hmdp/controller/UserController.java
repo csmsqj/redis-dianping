@@ -1,11 +1,15 @@
 package com.hmdp.controller;
 
 
+import cn.hutool.core.bean.BeanUtil;
 import com.hmdp.dto.LoginFormDTO;
 import com.hmdp.dto.Result;
+import com.hmdp.dto.UserDTO;
+import com.hmdp.entity.User;
 import com.hmdp.entity.UserInfo;
 import com.hmdp.service.IUserInfoService;
 import com.hmdp.service.IUserService;
+import com.hmdp.utils.UserHolder;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -58,14 +62,14 @@ return userService.login(loginForm, session);
      */
     @PostMapping("/logout")
     public Result logout(){
-        // TODO 实现登出功能
-        return Result.fail("功能未完成");
+        // 你可以先简单返回成功，后面再做删除 Redis token
+        return Result.ok();
     }
 
     @GetMapping("/me")
     public Result me(){
-        // TODO 获取当前登录的用户并返回
-        return Result.fail("功能未完成");
+        // 直接从 ThreadLocal 里取当前登录用户
+        return Result.ok(UserHolder.getUser());
     }
 
     @GetMapping("/info/{id}")
@@ -81,4 +85,30 @@ return userService.login(loginForm, session);
         // 返回
         return Result.ok(info);
     }
+
+    @GetMapping("/{id}")
+    public Result queryUserById(@PathVariable("id") Long userId) {
+        User user = userService.getById(userId);
+            if (user == null) {
+                return Result.ok();
+            }
+        UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
+
+        return Result.ok(userDTO);
+    }
+
+
+@PostMapping("/sign")
+//签到功能
+    public Result sign() {
+        return userService.sign();
+    }
+
+    @GetMapping("/sign/count")
+    //查询连续签到天数
+    public Result signCount() {
+        return userService.signCount();
+    }
+
+
 }
