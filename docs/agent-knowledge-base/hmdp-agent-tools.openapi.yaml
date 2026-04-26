@@ -1,0 +1,173 @@
+openapi: 3.0.3
+info:
+  title: HMDP Agent Tools
+  version: 0.1.0
+  description: >
+    黑马点评 AI 导购助手工具定义草案。用于 Dify Custom Tool 或类似 Agent 平台导入。
+    真实地址请替换为你的 Spring Boot 服务地址，例如 http://localhost:8081。
+servers:
+  - url: http://localhost:8081
+paths:
+  /shop-type/list:
+    get:
+      operationId: listShopTypes
+      summary: 查询店铺类目列表
+      description: 获取美食、KTV、丽人等店铺类目。
+      responses:
+        "200":
+          description: 店铺类目列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+  /shop/of/type:
+    get:
+      operationId: queryShopsByType
+      summary: 按类目查询附近店铺
+      description: 按店铺类目、分页和可选经纬度查询门店。适合“附近美食”“附近 KTV”等场景。
+      parameters:
+        - name: typeId
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: 店铺类目 ID。
+        - name: current
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+          description: 页码。
+        - name: x
+          in: query
+          required: false
+          schema:
+            type: number
+            format: double
+          description: 经度。
+        - name: y
+          in: query
+          required: false
+          schema:
+            type: number
+            format: double
+          description: 纬度。
+      responses:
+        "200":
+          description: 店铺列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+  /shop/of/name:
+    get:
+      operationId: searchShopsByName
+      summary: 按店名搜索店铺
+      description: 用户输入店铺名或关键词时使用，例如“新白鹿”“烤肉”。
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 店铺名或关键词。
+        - name: current
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+          description: 页码。
+      responses:
+        "200":
+          description: 店铺搜索结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+  /shop/{id}:
+    get:
+      operationId: getShopById
+      summary: 查询店铺详情
+      description: 根据店铺 ID 查询店铺详情。
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 店铺 ID。
+      responses:
+        "200":
+          description: 店铺详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+  /voucher/list/{shopId}:
+    get:
+      operationId: listVouchersByShop
+      summary: 查询某店优惠券
+      description: 根据店铺 ID 查询普通券、秒杀券等优惠券列表。
+      parameters:
+        - name: shopId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 店铺 ID。
+      responses:
+        "200":
+          description: 优惠券列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+  /voucher-order/seckill/{id}:
+    post:
+      operationId: seckillVoucher
+      summary: 秒杀优惠券下单
+      description: >
+        根据优惠券 ID 提交秒杀请求。该接口需要用户登录态，并且 Agent 必须在调用前完成二次确认。
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 秒杀券 ID。
+        - name: Authorization
+          in: header
+          required: true
+          schema:
+            type: string
+          description: 用户登录 Token。
+      responses:
+        "200":
+          description: 秒杀下单结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+        "401":
+          description: 未登录或登录态失效
+components:
+  schemas:
+    Result:
+      type: object
+      properties:
+        success:
+          type: boolean
+        errorMsg:
+          type: string
+          nullable: true
+        data:
+          nullable: true
+        total:
+          type: integer
+          format: int64
+          nullable: true

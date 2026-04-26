@@ -23,7 +23,8 @@ public class InterceptorConfig implements WebMvcConfigurer {
                         "/voucher/**",
                         "/upload/**",
                         "/blog/hot",
-                        "/shop-type/**"
+                        "/shop-type/**",
+                        "/agent/**"
                 ).order(1);
 //配置开始拦截器，让它拦截所有
         registry.addInterceptor(new BeginInterceptor(stringRedisTemplate))
