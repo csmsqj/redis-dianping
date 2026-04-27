@@ -1,12 +1,16 @@
 package com.hmdp.controller;
 
 import cn.hutool.core.util.StrUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hmdp.dto.Result;
+import com.hmdp.entity.Shop;
 import com.hmdp.service.IShopService;
 import com.hmdp.service.IVoucherOrderService;
 import com.hmdp.service.IVoucherService;
 import com.hmdp.utils.UserHolder;
 import jakarta.annotation.Resource;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,16 +21,17 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-import com.hmdp.entity.Shop;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/agent")
 public class AgentController {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Resource
     private IShopService shopService;
@@ -77,25 +82,103 @@ public class AgentController {
         Map<String, Object> difyRequest = new LinkedHashMap<>();
         difyRequest.put("inputs", buildDifyInputs(request, authorization));
         difyRequest.put("query", query);
-        difyRequest.put("response_mode", "blocking");
+        difyRequest.put("response_mode", "streaming");
         putIfNotNull(difyRequest, "conversation_id", normalizeConversationId(request));
         difyRequest.put("user", resolveDifyUser(request));
 
         try {
-            Map<?, ?> difyResponse = difyRestClient.post()
+            String difyStream = difyRestClient.post()
                     .uri("/chat-messages")
-                    // 不手写 JSON 字符串，而是传 Map 给 Spring/Jackson 自动序列化。
-                    // 这样可以避免漏大括号、字段名写错、字符串转义错误。
+                    .accept(MediaType.TEXT_EVENT_STREAM)
+                    // Agent Chat App 不支持 blocking，所以这里用 streaming。
+                    // 请求体仍交给 Spring/Jackson 序列化，避免手写 JSON 出错。
                     .body(difyRequest)
                     .retrieve()
-                    // 用 Map.class 接收 Dify 完整响应，避免生成内部 DTO class。
-                    // 你的 target 目录当前存在写入权限问题，这样更容易编译通过。
-                    .body(Map.class);
+                    .body(String.class);
 
-            return Result.ok(difyResponse);
+            return Result.ok(parseDifyStreamingResponse(difyStream));
         } catch (RestClientException e) {
             // Dify 调用失败时返回统一 Result，前端不用解析 Spring 默认异常页面。
             return Result.fail("调用 Dify 失败：" + e.getMessage());
+        } catch (IllegalStateException e) {
+            return Result.fail("解析 Dify 流式响应失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * Dify streaming 返回的是 SSE 文本流，不是普通 JSON。
+     * 这里把多段 data: {...} 中的 answer 片段拼成完整回答，
+     * 再组装成和 blocking 类似的 Map，保证前端仍然可以读取 data.answer。
+     */
+    private Map<String, Object> parseDifyStreamingResponse(String streamBody) {
+        if (StrUtil.isBlank(streamBody)) {
+            throw new IllegalStateException("Dify 返回的流式响应为空");
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        StringBuilder answer = new StringBuilder();
+        StringBuilder eventData = new StringBuilder();
+
+        String[] lines = streamBody.split("\\R");
+        for (String line : lines) {
+            if (line.isBlank()) {
+                handleDifySseData(eventData, answer, result);
+                eventData.setLength(0);
+                continue;
+            }
+
+            if (line.startsWith("data:")) {
+                eventData.append(line.substring("data:".length()).trim()).append('\n');
+            }
+        }
+
+        handleDifySseData(eventData, answer, result);
+        result.put("event", "message");
+        result.put("answer", answer.toString());
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void handleDifySseData(StringBuilder eventData, StringBuilder answer, Map<String, Object> result) {
+        if (eventData == null || eventData.isEmpty()) {
+            return;
+        }
+
+        String data = eventData.toString().trim();
+        if (StrUtil.isBlank(data) || "[DONE]".equals(data)) {
+            return;
+        }
+
+        try {
+            Map<String, Object> chunk = OBJECT_MAPPER.readValue(data, Map.class);
+            Object event = chunk.get("event");
+            if ("error".equals(event)) {
+                Object code = chunk.get("code");
+                Object message = chunk.get("message");
+                throw new IllegalStateException("Dify 返回错误事件：" + code + " " + message);
+            }
+
+            Object answerPart = chunk.get("answer");
+            if (answerPart != null) {
+                answer.append(answerPart);
+            }
+
+            copyIfPresent(chunk, result, "task_id");
+            copyIfPresent(chunk, result, "id");
+            copyIfPresent(chunk, result, "message_id");
+            copyIfPresent(chunk, result, "conversation_id");
+            copyIfPresent(chunk, result, "mode");
+            copyIfPresent(chunk, result, "metadata");
+            copyIfPresent(chunk, result, "created_at");
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("无法解析 Dify SSE 数据片段：" + data, e);
+        }
+    }
+
+    private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
+        Object value = source.get(key);
+        if (value != null) {
+            target.put(key, value);
         }
     }
 
